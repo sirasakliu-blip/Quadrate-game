@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141a29"/>
+      <stop offset="50%" stop-color="#0c101a"/>
+      <stop offset="100%" stop-color="#06080e"/>
+    </linearGradient>
+
+    <!-- Block Gradients -->
+    <!-- Cyan (I/Top) -->
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <!-- Purple (T/Left) -->
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <!-- Blue (J/Right) -->
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <!-- Green (S/Bottom-Left) -->
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <!-- Amber / Gold (O/Tail of Q) -->
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <!-- Red (Z) -->
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f87171"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+
+    <!-- Subtle Drop Shadow Filter for Blocks -->
+    <filter id="blockShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+
+    <!-- Outer Glow for Q-Tail -->
+    <filter id="tailGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#f59e0b" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- Container Base Rounded Squircle -->
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#bgGrad)" stroke="rgba(255,255,255,0.14)" stroke-width="6"/>
+
+  <!-- Subtle Grid Accent Lines in Background -->
+  <path d="M120 16v480 M200 16v480 M312 16v480 M392 16v480 M16 120h480 M16 200h480 M16 312h480 M16 392h480" stroke="rgba(255,255,255,0.03)" stroke-width="2"/>
+
+  <!-- Group of Tetromino Blocks forming "Q" Emblem -->
+  <g filter="url(#blockShadow)">
+    
+    <!-- TOP ROW (Cyan Tetromino Block - 2 units) -->
+    <!-- Cell (180, 84) -->
+    <g transform="translate(176, 80)">
+      <rect width="76" height="76" rx="12" fill="url(#cyanGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <!-- Cell (260, 84) -->
+    <g transform="translate(260, 80)">
+      <rect width="76" height="76" rx="12" fill="url(#cyanGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+
+    <!-- TOP-LEFT CORNER (Purple Tetromino Block) -->
+    <g transform="translate(92, 80)">
+      <rect width="76" height="76" rx="12" fill="url(#purpleGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <!-- LEFT SIDE (Purple Cell 2) -->
+    <g transform="translate(92, 164)">
+      <rect width="76" height="76" rx="12" fill="url(#purpleGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <!-- LEFT SIDE (Purple Cell 3) -->
+    <g transform="translate(92, 248)">
+      <rect width="76" height="76" rx="12" fill="url(#purpleGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+
+    <!-- TOP-RIGHT CORNER & RIGHT SIDE (Blue Tetromino Blocks) -->
+    <g transform="translate(344, 80)">
+      <rect width="76" height="76" rx="12" fill="url(#blueGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <g transform="translate(344, 164)">
+      <rect width="76" height="76" rx="12" fill="url(#blueGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <g transform="translate(344, 248)">
+      <rect width="76" height="76" rx="12" fill="url(#blueGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+
+    <!-- BOTTOM-LEFT CORNER & BOTTOM (Green Tetromino Blocks) -->
+    <g transform="translate(92, 332)">
+      <rect width="76" height="76" rx="12" fill="url(#greenGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <g transform="translate(176, 332)">
+      <rect width="76" height="76" rx="12" fill="url(#greenGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+    <g transform="translate(260, 332)">
+      <rect width="76" height="76" rx="12" fill="url(#greenGrad)"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.4"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    </g>
+
+    <!-- CENTER PIECE SLIDING (Ruby / Red Core Accent) -->
+    <g transform="translate(218, 206)">
+      <rect width="76" height="76" rx="12" fill="url(#redGrad)" opacity="0.88"/>
+      <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.45"/>
+      <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+      <rect x="16" y="16" width="44" height="44" rx="6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+    </g>
+
+    <!-- THE "Q" TAIL: GOLDEN AMBER TETROMINO PIECE LOCKING OUTWARD -->
+    <g filter="url(#tailGlow)">
+      <!-- Connected base of tail -->
+      <g transform="translate(320, 308)">
+        <rect width="80" height="80" rx="14" fill="url(#amberGrad)"/>
+        <path d="M6 6 h68 v9 h-59 v59 h-9 z" fill="#ffffff" opacity="0.55"/>
+        <path d="M74 15 v59 h-59 v6 h65 z" fill="#000000" opacity="0.35"/>
+        <rect x="18" y="18" width="44" height="44" rx="8" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.5"/>
+      </g>
+      <!-- Extended projection block of tail -->
+      <g transform="translate(376, 364)">
+        <rect width="76" height="76" rx="14" fill="url(#amberGrad)"/>
+        <path d="M6 6 h64 v8 h-56 v56 h-8 z" fill="#ffffff" opacity="0.6"/>
+        <path d="M70 14 v56 h-56 v6 h62 z" fill="#000000" opacity="0.35"/>
+        <rect x="16" y="16" width="44" height="44" rx="8" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="2.5"/>
+        <!-- Star glint in corner -->
+        <polygon points="38,16 42,28 54,32 42,36 38,48 34,36 22,32 34,28" fill="#ffffff" opacity="0.95"/>
+      </g>
+    </g>
+
+  </g>
+</svg>

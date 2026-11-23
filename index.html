@@ -7,10 +7,14 @@
 <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="theme-color" content="#0a0d14">
 <title>Quadrate Game — Mobile & Tablet Optimized</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="alternate icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;0,800;1,700&family=Kanit:wght@300;400;500;600;700;800;900&family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 
@@ -18,12 +22,14 @@
   <!-- แถบด้านบน -->
   <header class="top-bar">
     <div class="brand">
-      <span class="brand-dot"></span>
+      <img src="favicon.svg" alt="Quadrate Logo" class="brand-logo-icon">
       <span>QUADRATE GAME</span>
       <span id="modeBadge" class="mode-badge">MODERN</span>
       <span id="gameTimerBadge" class="timer-badge hidden">00:00.00</span>
     </div>
     <div class="top-actions">
+      <button id="btnOpenAddQuizTop" class="btn-icon" title="เพิ่มข้อสอบเข้าคลัง">➕ ข้อสอบ</button>
+      <button id="btnOpenAddClipTop" class="btn-icon" title="เพิ่มคลิปเข้าคลัง">🎬 เพิ่มคลิป</button>
       <button id="btnRulesTop" class="btn-icon" title="คู่มือและกติกาการเล่น">📖 กติกา</button>
       <button id="btnTrophies" class="btn-icon" title="ความสำเร็จ">🏆 ถ้วย</button>
       <button id="btnSound" class="btn-icon" title="เสียง & ตั้งค่า">🔊 เสียง</button>
@@ -63,6 +69,13 @@
       <div id="comboPanelBox" class="panel-box">
         <div class="panel-title">COMBO</div>
         <div id="comboVal" class="panel-value highlight">×0</div>
+      </div>
+      <div id="bankPanelBox" class="panel-box bank-panel-box">
+        <div class="panel-title">LIBRARY</div>
+        <div class="bank-side-actions">
+          <button type="button" id="btnOpenAddQuizSide" class="btn-side-action" title="เพิ่มข้อสอบเข้าคลัง">➕ ข้อสอบ</button>
+          <button type="button" id="btnOpenAddClipSide" class="btn-side-action" title="เพิ่มคลิป YouTube เข้าคลัง">🎬 เพิ่มคลิป</button>
+        </div>
       </div>
     </aside>
 
@@ -150,7 +163,9 @@
 <!-- หน้าจอเริ่มต้น: เลือกโหมด -->
 <div id="startOverlay" class="overlay">
   <div class="modal-card">
-    <h1 class="modal-title">QUADRATE GAME</h1>
+    <div class="start-logo-header" style="text-align: center; margin-bottom: 8px;">
+      <img src="logo.svg" alt="QUADRATE GAME" class="start-logo-img">
+    </div>
     <p class="modal-subtitle">เลือกรูปแบบการเล่นก่อนเข้าสู่เกม</p>
 
     <div class="setup-section">
@@ -201,12 +216,14 @@
     <button id="btnResumeGame" class="btn-primary">▶ เล่นต่อ (Resume)</button>
     <button id="btnOpenRulesFromPause" class="btn-secondary">📖 วิธีเล่น & ปุ่มควบคุม</button>
     <button id="btnSettingsFromPause" class="btn-secondary">⚙️ ตั้งค่าเสียง & เอฟเฟกต์</button>
+    <button id="btnOpenAddQuizPause" class="btn-secondary">➕ เพิ่มข้อสอบเข้าคลัง (Add Quiz)</button>
+    <button id="btnOpenAddClipPause" class="btn-secondary">🎬 เพิ่มคลิป YouTube เข้าคลัง (Add Clip)</button>
     <button id="btnRestartFromPause" class="btn-secondary">🔄 เริ่มเกมใหม่ (โหมดเดิม)</button>
     <button id="btnMenuFromPause" class="btn-secondary">🎮 เปลี่ยนโหมด / เมนูหลัก (Change Mode)</button>
   </div>
 </div>
 
-<!-- หน้าจอจบเกม (Game Over) — บังคับส่ง Feedback ก่อนเล่นใหม่ -->
+<!-- 1) หน้าจอจบเกม (Game Over Modal) -->
 <div id="gameOverOverlay" class="overlay hidden">
   <div class="modal-card">
     <h2 class="modal-title">GAME OVER</h2>
@@ -231,29 +248,252 @@
       </div>
     </div>
 
-    <div class="feedback-section">
-      <h4>⭐ ให้คะแนน & ส่ง Feedback ก่อนเริ่มรอบใหม่</h4>
-      <span class="mandatory-badge">🔒 ส่งสถิติและ Feedback ด้านล่างเพื่อปลดล็อกปุ่มเล่นใหม่</span>
+    <!-- ส่วนเลือกทางกิจกรรมความรู้เพื่อเล่นต่อหรือจบเกม (จำกัด 3 ครั้งต่อเกม) -->
+    <div class="knowledge-gate-section" id="knowledgeGateSection">
+      <div class="knowledge-gate-title">✨ สิทธิ์คืนชีพเล่นต่อ (REVIVE & CONTINUE)</div>
+      <div id="reviveLimitBadge" class="revive-limit-badge">สิทธิ์คงเหลือ: 3/3 ครั้งต่อเกม</div>
+      <p class="knowledge-gate-desc" id="knowledgeGateDesc">เลือกทำกิจกรรมความรู้อย่างใดอย่างหนึ่งเพื่อชุบชีวิตเล่นต่อ (กระดานจะถูกรีเซ็ตใหม่หมดโดยคงคะแนนเดิมไว้):</p>
 
-      <div class="star-rating" id="starContainer">
-        <button type="button" class="star-btn active" data-star="1">★</button>
-        <button type="button" class="star-btn active" data-star="2">★</button>
-        <button type="button" class="star-btn active" data-star="3">★</button>
-        <button type="button" class="star-btn active" data-star="4">★</button>
+      <div class="knowledge-gate-buttons" id="knowledgeGateButtons">
+        <button type="button" id="btnChoiceWatchClip" class="btn-gate-choice btn-gate-clip">
+          <span class="gate-icon">📺</span>
+          <span class="gate-label">สุ่มดูคลิปวิดีโอความรู้</span>
+          <span class="gate-sub">(ดูจบเพื่อเล่นต่อด้วยคะแนนเดิม)</span>
+        </button>
+
+        <button type="button" id="btnChoiceTakeQuiz" class="btn-gate-choice btn-gate-quiz">
+          <span class="gate-icon">📝</span>
+          <span class="gate-label">สุ่มทำแบบทดสอบ</span>
+          <span class="gate-sub">(ตอบถูกเล่นต่อด้วยคะแนนเดิม / ตอบผิดจบเกมบันทึกคะแนน)</span>
+        </button>
+      </div>
+
+      <div id="reviveExhaustedMsg" class="revive-exhausted-msg hidden">
+        🔒 คุณใช้สิทธิ์คืนชีพครบ 3/3 ครั้งในเกมรอบนี้แล้ว ไม่สามารถคืนชีพได้อีก กรุณาบันทึกคะแนนหรือเริ่มเกมใหม่
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button type="button" id="btnSaveScoreDirectGameOver" class="btn-primary" style="flex: 1.2;">💾 บันทึกคะแนนตอนนี้</button>
+      <button type="button" id="btnPlayAgain" class="btn-secondary" style="flex: 1;">🔄 เริ่มใหม่ (นับ 0)</button>
+      <button type="button" id="btnBackToMenu" class="btn-secondary" style="flex: 1;">🎮 เมนูหลัก</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2) Modal ดูคลิป YouTube -->
+<div id="clipModal" class="overlay hidden">
+  <div class="modal-card clip-modal-card">
+    <div class="clip-header-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <h2 class="modal-title" style="margin-bottom: 0;">📺 สุ่มดูคลิปวิดีโอความรู้</h2>
+      <button type="button" id="btnToggleClipAspect" class="btn-aspect-toggle" title="สลับสัดส่วนวิดีโอ 16:9 / 9:16">
+        📱 สลับเป็น Shorts
+      </button>
+    </div>
+    <h3 id="clipTitle" class="clip-title-text">กำลังโหลดคลิปวิดีโอ...</h3>
+
+    <div class="yt-aspect-container" id="ytAspectContainer">
+      <div class="yt-player-wrapper">
+        <div id="yt-player"></div>
+      </div>
+    </div>
+
+    <div class="clip-antiseek-warning">
+      ⚠️ <strong>คำเตือน:</strong> ห้ามกดกรอข้ามคลิป หากเลื่อนเวลาข้าม ระบบจะดึงกลับมาเล่นต่อจากจุดเดิมทันที
+    </div>
+
+    <div id="clipProgressInfo" class="clip-status-indicator">
+      ⏳ กำลังเตรียมเล่นคลิปวิดีโอ...
+    </div>
+
+    <div class="modal-actions" style="margin-top: 14px; display: flex; gap: 8px;">
+      <button type="button" id="btnSaveScoreFromClip" class="btn-primary" disabled style="flex: 2;">
+        ▶ เล่นต่อ (กระดานใหม่ คะแนนเดิม)
+      </button>
+      <button type="button" id="btnCloseClipModal" class="btn-secondary" style="flex: 1;">
+        ยกเลิก
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 3) Modal ทำแบบทดสอบ (Quiz) -->
+<div id="quizModal" class="overlay hidden">
+  <div class="modal-card quiz-modal-card">
+    <h2 class="modal-title">📝 สุ่มทำแบบทดสอบ</h2>
+    <p class="modal-subtitle">ตอบคำถามให้ถูกต้องเพื่อคืนชีพเล่นต่อด้วยคะแนนเดิม (กระดานจะถูกรีเซ็ตใหม่)</p>
+
+    <div class="quiz-question-container">
+      <div id="quizQuestionText" class="quiz-question-body">กำลังสุ่มข้อสอบ...</div>
+    </div>
+
+    <div id="quizOptionsContainer" class="quiz-choices-grid">
+      <button type="button" class="quiz-choice-btn" id="quizOpt1" data-choice="1">
+        <span class="choice-number">1</span>
+        <span class="choice-text" id="quizText1">ตัวเลือกที่ 1</span>
+      </button>
+      <button type="button" class="quiz-choice-btn" id="quizOpt2" data-choice="2">
+        <span class="choice-number">2</span>
+        <span class="choice-text" id="quizText2">ตัวเลือกที่ 2</span>
+      </button>
+      <button type="button" class="quiz-choice-btn" id="quizOpt3" data-choice="3">
+        <span class="choice-number">3</span>
+        <span class="choice-text" id="quizText3">ตัวเลือกที่ 3</span>
+      </button>
+      <button type="button" class="quiz-choice-btn" id="quizOpt4" data-choice="4">
+        <span class="choice-number">4</span>
+        <span class="choice-text" id="quizText4">ตัวเลือกที่ 4</span>
+      </button>
+    </div>
+
+    <div id="quizResultArea" class="quiz-result-area hidden"></div>
+
+    <div class="modal-actions" style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button type="button" id="btnContinueFromQuizCorrect" class="btn-primary hidden" style="width: 100%;">
+        ▶ คืนชีพเล่นต่อทันที (กระดานใหม่ คะแนนเดิม)
+      </button>
+      <button type="button" id="btnGoToSaveScoreFromWrong" class="btn-primary hidden" style="flex: 1;">
+        🏆 ไปหน้าบันทึกคะแนน
+      </button>
+      <button type="button" id="btnRestartFromQuizWrong" class="btn-secondary hidden" style="flex: 1;">
+        🔄 เริ่มใหม่ทั้งหมด (นับ 0)
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 4) Modal กรอกชื่อและบันทึกคะแนน พร้อม Feedback -->
+<div id="saveScoreModal" class="overlay hidden">
+  <div class="modal-card save-modal-card">
+    <h2 class="modal-title">🏆 สรุปและบันทึกคะแนน</h2>
+    <p class="modal-subtitle">จบเกมการเล่นรอบนี้แล้ว กรอกชื่อและ Feedback เพื่อบันทึกข้อมูล</p>
+
+    <div class="save-score-banner">
+      <span class="save-banner-label">คะแนนที่ได้รอบนี้</span>
+      <strong id="saveModalScoreVal" class="save-banner-val">0</strong>
+    </div>
+
+    <!-- ส่วนให้คะแนนดาวและพิมพ์ Feedback -->
+    <div class="feedback-section" style="margin: 12px 0 10px; text-align: left;">
+      <h4 style="font-size: 0.9rem; margin-bottom: 2px; color: #fff; text-align: center;">⭐ ให้คะแนนและความคิดเห็น (Feedback)</h4>
+      <div class="star-rating" style="display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px;">
+        <button type="button" class="star-btn" data-star="1">★</button>
+        <button type="button" class="star-btn" data-star="2">★</button>
+        <button type="button" class="star-btn" data-star="3">★</button>
+        <button type="button" class="star-btn" data-star="4">★</button>
         <button type="button" class="star-btn active" data-star="5">★</button>
       </div>
 
-      <input type="text" id="playerNameInput" class="form-input" placeholder="ชื่อผู้เล่น (เว้นว่าง = Anonymous)" maxlength="50">
-      <div class="anon-hint">* หากไม่กรอกชื่อ ระบบจะบันทึกเป็น "Anonymous" อัตโนมัติ</div>
+      <div class="form-group" style="margin-bottom: 10px;">
+        <label for="saveScorePlayerName" class="setup-label">ชื่อผู้เล่น:</label>
+        <input type="text" id="saveScorePlayerName" class="form-input" placeholder="ชื่อผู้เล่น (เว้นว่าง = Anonymous)" maxlength="50">
+        <div class="anon-hint" style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">* หากไม่กรอกชื่อ ระบบจะบันทึกเป็น "Anonymous" อัตโนมัติ</div>
+      </div>
 
-      <textarea id="feedbackInput" class="form-textarea" placeholder="พิมพ์ความคิดเห็นหรือข้อเสนอแนะเกี่ยวกับเกม... (จำเป็น)" maxlength="300" required></textarea>
-
-      <button type="button" id="btnSubmitFeedback" class="btn-primary" style="padding: 10px;">📤 ส่งสถิติและ Feedback เพื่อปลดล็อก</button>
-      <div id="feedbackStatus" class="status-msg"></div>
+      <div class="form-group" style="margin-bottom: 6px;">
+        <label for="saveScoreFeedback" class="setup-label">ข้อเสนอแนะ / ความคิดเห็น (Feedback):</label>
+        <textarea id="saveScoreFeedback" class="form-textarea" placeholder="พิมพ์ความคิดเห็นหรือข้อเสนอแนะเพื่อพัฒนาเกม..." rows="3"></textarea>
+      </div>
     </div>
 
-    <button id="btnPlayAgain" class="btn-secondary" disabled>🔒 เล่นใหม่อีกครั้ง (ส่ง Feedback ก่อน)</button>
-    <button id="btnBackToMenu" class="btn-secondary" disabled>🔒 กลับหน้าเลือกโหมด (ส่ง Feedback ก่อน)</button>
+    <button type="button" id="btnConfirmSaveScore" class="btn-primary" style="width: 100%; margin-top: 6px; padding: 12px;">
+      💾 ส่งสถิติและ Feedback เพื่อบันทึกคะแนน
+    </button>
+    <div id="saveScoreStatus" class="status-msg"></div>
+
+    <div id="postSaveActions" class="modal-actions hidden" style="margin-top: 14px; display: flex; gap: 8px;">
+      <button type="button" id="btnPlayAgainAfterSave" class="btn-primary" style="flex: 1;">🔄 เริ่มเล่นใหม่ทั้งหมด (นับ 0)</button>
+      <button type="button" id="btnMenuAfterSave" class="btn-secondary" style="flex: 1;">🎮 กลับหน้าเลือกโหมด</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5.1) Modal เพิ่มข้อสอบเข้าคลัง -->
+<div id="addQuizModal" class="overlay hidden">
+  <div class="modal-card bank-modal-card">
+    <h2 class="modal-title">➕ เพิ่มข้อสอบเข้าคลัง</h2>
+    <p class="modal-subtitle">ส่งข้อสอบใหม่เข้าสู่ Google Sheets คลังข้อสอบ</p>
+
+    <form id="formAddQuiz" onsubmit="return false;" class="bank-form-layout">
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizQuestion" class="setup-label">คำถาม / โจทย์:</label>
+        <textarea id="newQuizQuestion" class="form-textarea" placeholder="พิมพ์โจทย์คำถามที่ต้องการเพิ่ม..." rows="3" required></textarea>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizC1" class="setup-label">ตัวเลือกที่ 1:</label>
+        <input type="text" id="newQuizC1" class="form-input" placeholder="คำตอบตัวเลือกที่ 1" required>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizC2" class="setup-label">ตัวเลือกที่ 2:</label>
+        <input type="text" id="newQuizC2" class="form-input" placeholder="คำตอบตัวเลือกที่ 2" required>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizC3" class="setup-label">ตัวเลือกที่ 3:</label>
+        <input type="text" id="newQuizC3" class="form-input" placeholder="คำตอบตัวเลือกที่ 3" required>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizC4" class="setup-label">ตัวเลือกที่ 4:</label>
+        <input type="text" id="newQuizC4" class="form-input" placeholder="คำตอบตัวเลือกที่ 4" required>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newQuizAnswer" class="setup-label">ตัวเลือกที่ถูกต้อง:</label>
+        <select id="newQuizAnswer" class="form-select">
+          <option value="1">ตัวเลือกที่ 1</option>
+          <option value="2">ตัวเลือกที่ 2</option>
+          <option value="3">ตัวเลือกที่ 3</option>
+          <option value="4">ตัวเลือกที่ 4</option>
+        </select>
+      </div>
+
+      <div id="addQuizStatus" class="status-msg"></div>
+
+      <div class="modal-actions" style="margin-top: 14px; display: flex; gap: 8px;">
+        <button type="submit" id="btnSubmitNewQuiz" class="btn-primary" style="flex: 2;">📤 บันทึกข้อสอบเข้าคลัง</button>
+        <button type="button" id="btnCloseAddQuiz" class="btn-secondary" style="flex: 1;">ปิด</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 5.2) Modal เพิ่มคลิป YouTube เข้าคลัง -->
+<div id="addClipModal" class="overlay hidden">
+  <div class="modal-card bank-modal-card">
+    <h2 class="modal-title">🎬 เพิ่มคลิป YouTube เข้าคลัง</h2>
+    <p class="modal-subtitle">ส่งคลิปวิดีโอใหม่เข้าสู่ Google Sheets คลังคลิป</p>
+
+    <form id="formAddClip" onsubmit="return false;" class="bank-form-layout">
+      <div class="form-group" style="text-align: left;">
+        <label for="newClipTitle" class="setup-label">ชื่อคลิปวิดีโอ (Title):</label>
+        <input type="text" id="newClipTitle" class="form-input" placeholder="เช่น การระบุปัญหาในกระบวนการออกแบบ" required>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newClipUrl" class="setup-label">ลิงก์ YouTube (watch?v= / youtu.be / shorts/):</label>
+        <input type="url" id="newClipUrl" class="form-input" placeholder="https://www.youtube.com/watch?v=..." required>
+        <div class="anon-hint">* รองรับทั้งรูปแบบ https://youtu.be/..., watch?v=... และ shorts/...</div>
+      </div>
+
+      <div class="form-group" style="text-align: left;">
+        <label for="newClipAspect" class="setup-label">สัดส่วนวิดีโอ (Aspect Ratio):</label>
+        <select id="newClipAspect" class="form-select">
+          <option value="auto">⚡ ตรวจจับอัตโนมัติจากลิงก์ (Auto-detect)</option>
+          <option value="shorts">📱 คลิปแนวตั้ง (Shorts 9:16)</option>
+          <option value="landscape">📺 แนวนอนปกติ (16:9)</option>
+        </select>
+      </div>
+
+      <div id="addClipStatus" class="status-msg"></div>
+
+      <div class="modal-actions" style="margin-top: 14px; display: flex; gap: 8px;">
+        <button type="submit" id="btnSubmitNewClip" class="btn-primary" style="flex: 2;">📤 บันทึกคลิปเข้าคลัง</button>
+        <button type="button" id="btnCloseAddClip" class="btn-secondary" style="flex: 1;">ปิด</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -816,7 +1056,7 @@
 
     <div class="rules-footer">
       <button id="btnAcceptRules" class="btn-primary btn-large">
-        ✅ ฉันเข้าใจแล้ว เข้าสู่การเลือกโหมด ➔
+        ฉันเข้าใจแล้ว เข้าสู่การเลือกโหมด ➔
       </button>
     </div>
   </div>
@@ -859,14 +1099,14 @@
 
 <!-- หน้าต่างแจ้งเตือนเมื่อคู่ต่อสู้ขอแข่งขันอีกรอบ (Rematch Prompt Modal) -->
 <div id="rematchPromptModal" class="overlay hidden" style="z-index: 100000;">
-  <div class="modal-card" style="max-width: 440px; text-align: center; border: 2px solid #38bdf8; box-shadow: 0 0 30px rgba(56, 189, 248, 0.45); animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+  <div class="modal-card" style="max-width: 440px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6); animation: popIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
     <div style="font-size: 3.2rem; margin-bottom: 8px;">⚔️</div>
-    <h2 class="modal-title" style="color: #38bdf8; margin-bottom: 8px; font-size: 1.6rem;">คำท้าดวลใหม่!</h2>
+    <h2 class="modal-title" style="color: #60a5fa; margin-bottom: 8px; font-size: 1.6rem;">คำท้าดวลใหม่!</h2>
     <p id="rematchPromptText" style="color: #e2e8f0; font-size: 1.05rem; line-height: 1.6; margin-bottom: 22px;">
       คู่ต่อสู้ต้องการแข่งขันอีกรอบกับคุณ!
     </p>
     <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-      <button id="btnAcceptRematchPrompt" class="btn-primary" style="padding: 10px 22px; font-size: 1.05rem; background: linear-gradient(135deg, #0ea5e9, #0284c7); border: none; font-weight: bold; cursor: pointer; border-radius: 8px;">
+      <button id="btnAcceptRematchPrompt" class="btn-primary" style="padding: 10px 22px; font-size: 1rem; border-radius: 8px;">
         ⚔️ ยอมรับคำท้า (แข่งอีกรอบ)
       </button>
       <button id="btnRejectRematchPrompt" class="btn-secondary" style="padding: 10px 18px; font-size: 1rem; border-radius: 8px; cursor: pointer;">

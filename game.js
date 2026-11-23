@@ -72,8 +72,749 @@
     setInterval(checkDevTools, 1500);
   }
 
-  // URL Google Apps Script ปลายทาง (เข้ารหัสแบบ Reverse + Base64 เพื่อป้องกันไม่ให้ผู้เล่นเห็น URL ในโค้ดโดยตรง)
-  const _APP_ENDPOINT = "==wYlhXZvkkSLhVd6RVS4QURZV2Xt5GcZFkeT1mZ61kValzX3J1UohXd5IVYNlHa5JDdnN2ZzYlRPdzczNzYNFETvdnQLJmZ3J2Y5Z2SB9ycvM3byNWYt9SbvNmLlx2Zv92ZuQHcpJ3Yz9yL6MHc0RHa";
+  // =========================================================================
+  // Google Apps Script Endpoints (เชื่อมต่อ 2 ระบบ):
+  // 1) ระบบบันทึกคะแนน สถิติ และ Feedback ผู้เล่น (Tetris Game Statistics & Feedback)
+  // 2) ระบบคลังข้อสอบ (Quiz Bank) และคลังคลิปวิดีโอ (YouTube Clips Bank)
+  // =========================================================================
+  const scoreFeedbackGasUrl = "https://script.google.com/macros/s/AKfycbwfbKBwoLAMc3ss7OFV3gcgt2yhyMaR9uxhSRw_9ZVMzfmSzAYpnm_eYED8ITzuXKJI/exec";
+  const contentGasUrl = "https://script.google.com/macros/s/AKfycbxAoq6rSzQyZvkM5OkMHTWj5ZZVM4VOYw7YPr_-YkdDe550b4BBLLRYjMikBPHpNv92/exec";
+  let quizzes = [];
+  let clips = [];
+
+  // จำกัดสิทธิ์การคืนชีพเล่นต่อสูงสุด 3 ครั้งต่อเกม
+  const MAX_REVIVES_PER_GAME = 3;
+  let reviveCount = 0;
+
+  // ข้อมูลสำรองเริ่มต้น (Fallback) หากเชื่อมต่ออินเทอร์เน็ตไม่ได้ในครั้งแรก
+  const DEFAULT_QUIZZES = [
+    {
+      question: "ขั้นตอนแรกของกระบวนการออกแบบเชิงวิศวกรรม (Engineering Design Process) คือข้อใด?",
+      c1: "ระบุปัญหา (Problem Identification)",
+      c2: "ออกแบบวิธีการแก้ปัญหา",
+      c3: "ทดสอบและประเมินผล",
+      c4: "รวบรวมข้อมูลและแนวคิด",
+      answer: 1
+    },
+    {
+      question: "ข้อใดจัดเป็น \"เทคโนโลยี\" ตามความหมายในวิชาการออกแบบและเทคโนโลยี?",
+      c1: "ก้อนหินตามธรรมชาติ",
+      c2: "ต้นไม้ในป่า",
+      c3: "วิธีการสร้างเขื่อนกักเก็บน้ำ",
+      c4: "แม่น้ำลำคลอง",
+      answer: 3
+    },
+    {
+      question: "การสร้างชิ้นงานต้นแบบ (Prototype) มีวัตถุประสงค์หลักเพื่ออะไร?",
+      c1: "เพื่อขายทำกำไรทันที",
+      c2: "เพื่อทดสอบแนวคิดและหาข้อบกพร่องก่อนผลิตจริง",
+      c3: "เพื่อใช้ตกแต่งสถานที่",
+      c4: "เพื่อลดขั้นตอนการออกแบบ",
+      answer: 2
+    }
+  ];
+
+  const DEFAULT_CLIPS = [
+    {
+      title: "กระบวนการออกแบบเชิงวิศวกรรม (Engineering Design Process)",
+      youtubeUrl: "https://www.youtube.com/watch?v=M576WGiDBdQ"
+    },
+    {
+      title: "การคิดเชิงคำนวณและวิทยาการคำนวณ (Computational Thinking)",
+      youtubeUrl: "https://www.youtube.com/watch?v=qYZ2Qc00pNE"
+    }
+  ];
+
+  // ฟังก์ชันสกัด videoId จาก YouTube URL ทุกรูปแบบ (watch?v=, youtu.be/, shorts/, embed/)
+  function extractYouTubeVideoId(url) {
+    if (!url) return '';
+    url = String(url).trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+    const regExp = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([a-zA-Z0-9_-]{11})/i;
+    const match = url.match(regExp);
+    return match ? match[1] : '';
+  }
+
+  // ดึงข้อมูลคลังข้อสอบและคลังคลิปจาก Google Apps Script (GET Request) ทันทีที่โหลด
+  async function fetchGasContent() {
+    try {
+      const res = await fetch(contentGasUrl);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        if (Array.isArray(data.quizzes) && data.quizzes.length > 0) {
+          quizzes = data.quizzes;
+        }
+        if (Array.isArray(data.clips) && data.clips.length > 0) {
+          clips = data.clips;
+        }
+      }
+    } catch (err) {
+      console.warn('โหลดข้อมูลจาก contentGasUrl ล้มเหลว ใช้ข้อมูลชุดสำรอง:', err);
+    }
+  }
+
+  // เริ่มดึงข้อมูลคลังทันทีที่สคริปต์โหลด
+  fetchGasContent();
+
+  // ตัวแปรและสถานะสำหรับ YouTube IFrame Player & Anti-Seek
+  let ytPlayer = null;
+  let ytWatchInterval = null;
+  let maxWatchedTime = 0;
+  let isYtApiReady = false;
+
+  window.onYouTubeIframeAPIReady = function() {
+    isYtApiReady = true;
+  };
+
+  function resetYtPlayerContainer() {
+    const wrapper = document.querySelector('.yt-player-wrapper');
+    if (wrapper) {
+      wrapper.innerHTML = '<div id="yt-player"></div>';
+    }
+  }
+
+  function destroyYtPlayer() {
+    if (ytWatchInterval) {
+      clearInterval(ytWatchInterval);
+      ytWatchInterval = null;
+    }
+    if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+      try { ytPlayer.destroy(); } catch (e) {}
+    }
+    ytPlayer = null;
+    maxWatchedTime = 0;
+    resetYtPlayerContainer();
+  }
+
+  // ฟังก์ชันชุบชีวิต/เล่นต่อ: รีเซ็ตบล็อกบนกระดานใหม่ทั้งหมด แต่คงคะแนนสะสมเดิมไว้เท่าตอนที่แพ้ (จำกัด 3 ครั้งต่อเกม)
+  function continueGameWithSavedScore() {
+    if (reviveCount >= MAX_REVIVES_PER_GAME) {
+      openSaveScoreModal();
+      return;
+    }
+    reviveCount++;
+    closeOverlays();
+    destroyYtPlayer();
+
+    const savedScore = score;
+    const savedLines = lines;
+    const savedLevel = level;
+
+    if (gameMode === 'BlockBlast') {
+      gameState = 'PLAYING';
+      activePiece = null;
+      bbBoard = Array.from({ length: 10 }, () => Array(10).fill(null));
+      bbPieces = generateSmartBlockBlastPieces();
+      isDraggingBB = false;
+      bbDragSlot = -1;
+      bbHoverPos = null;
+      bbSelectedSlot = null;
+      bbLineClearEffects = [];
+      bbPlacedAnim = null;
+      dragNeedsUpdate = false;
+      cachedBoardRect = null;
+      score = savedScore;
+      lines = savedLines;
+      comboCount = 0;
+
+      const dragCanvas = document.getElementById('bbDragCanvas');
+      if (dragCanvas) dragCanvas.style.display = 'none';
+
+      updateScoreUI();
+      updateComboUI();
+      resizeCanvases();
+      requestAnimationFrame(() => {
+        resizeCanvases();
+        renderBlockBlastDock();
+      });
+
+      floatingTexts.push(new FloatingText(`✨ คืนชีพสำเร็จ (${reviveCount}/${MAX_REVIVES_PER_GAME}) เล่นต่อด้วยคะแนนเดิม`, (10 * 30) / 2, 140, '#22c55e', 22));
+      return;
+    }
+
+    // Classic, Modern, Sprint, Ultra
+    board = createEmptyBoard();
+    score = savedScore;
+    lines = savedLines;
+    level = savedLevel;
+    comboCount = -1;
+    boardGlowIntensity = 0;
+    particles = [];
+    shockwaves = [];
+    shakeTimer = 0;
+    whiteFlashTimer = 0;
+    laserBeamTimer = 0;
+    comboTextTimer = 0;
+    lastWasSpecial = false;
+    isBombChainClear = false;
+
+    const container = boardCanvas.parentElement;
+    if (container) container.classList.remove('frozen');
+
+    updateScoreUI();
+    updateComboUI();
+    initNextQueue();
+    holdPieceType = null;
+    canHold = true;
+    gameState = 'PLAYING';
+    resizeCanvases();
+    spawnNextPiece();
+
+    audioMgr.init();
+    audioMgr.setBgmLevel(level);
+    audioMgr.setTension(false);
+    audioMgr.startBgm();
+
+    floatingTexts.push(new FloatingText(`✨ คืนชีพสำเร็จ (${reviveCount}/${MAX_REVIVES_PER_GAME}) เล่นต่อด้วยคะแนนเดิม`, (COLS * cellSize) / 2, 140, '#22c55e', 22));
+  }
+
+  // ตรวจสอบและจัดการสัดส่วนคลิปวิดีโอ (YouTube Shorts 9:16 หรือ แนวนอน 16:9)
+  function isShortClip(clip) {
+    if (!clip) return false;
+    if (clip.isShort === true || clip.isShort === 'true') return true;
+    const url = (clip.youtubeUrl || '').toLowerCase();
+    const title = (clip.title || '').toLowerCase();
+    if (url.includes('/shorts/') || url.includes('shorts/')) return true;
+    if (title.includes('#shorts') || title.includes('(shorts)') || title.includes('[shorts]')) return true;
+    return false;
+  }
+
+  let currentClipIsShort = false;
+
+  function applyClipAspectRatio(isShort) {
+    currentClipIsShort = !!isShort;
+    const card = document.querySelector('.clip-modal-card');
+    const container = document.getElementById('ytAspectContainer') || document.querySelector('.yt-aspect-container');
+    const btnToggle = document.getElementById('btnToggleClipAspect');
+
+    if (card) card.classList.toggle('is-shorts', currentClipIsShort);
+    if (container) container.classList.toggle('is-shorts', currentClipIsShort);
+    if (btnToggle) {
+      btnToggle.textContent = currentClipIsShort ? '📺 สลับเป็นแนวนอน (16:9)' : '📱 สลับเป็น Shorts (9:16)';
+    }
+  }
+
+  // ระบบสุ่มคลิปวิดีโอ YouTube พร้อมระบบป้องกันการกดกรอข้าม (Anti-Seek)
+  function openRandomClipModal() {
+    if (gameMode === 'Versus' || reviveCount >= MAX_REVIVES_PER_GAME) return; // ไม่ใช้ในโหมดดวลออนไลน์ หรือใช้สิทธิ์ครบแล้ว
+    closeOverlays();
+    const clipModal = document.getElementById('clipModal');
+    if (!clipModal) return;
+    clipModal.classList.remove('hidden');
+
+    const pool = (clips && clips.length > 0) ? clips : DEFAULT_CLIPS;
+    let selected = pool[Math.floor(Math.random() * pool.length)];
+    let videoId = extractYouTubeVideoId(selected.youtubeUrl);
+
+    if (!videoId || videoId === 'VIDEO_ID') {
+      for (const c of pool) {
+        const v = extractYouTubeVideoId(c.youtubeUrl);
+        if (v && v !== 'VIDEO_ID') {
+          videoId = v;
+          selected = c;
+          break;
+        }
+      }
+      if (!videoId || videoId === 'VIDEO_ID') {
+        videoId = 'M576WGiDBdQ';
+        selected = { title: "กระบวนการออกแบบเชิงวิศวกรรม", youtubeUrl: "https://www.youtube.com/watch?v=M576WGiDBdQ" };
+      }
+    }
+
+    // ปรับสัดส่วนแสดงผลตามประเภทคลิป (Shorts 9:16 vs แนวนอน 16:9)
+    applyClipAspectRatio(isShortClip(selected));
+
+    const titleEl = document.getElementById('clipTitle');
+    if (titleEl) titleEl.textContent = selected.title || 'วิดีโอความรู้';
+
+    const saveBtn = document.getElementById('btnSaveScoreFromClip');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = '🔒 ดูคลิปให้จบเพื่อปลดล็อกเล่นต่อ';
+      saveBtn.classList.remove('pulse-ready');
+    }
+
+    const infoEl = document.getElementById('clipProgressInfo');
+    if (infoEl) infoEl.textContent = '⏳ กำลังเตรียมเล่นคลิปวิดีโอ...';
+
+    destroyYtPlayer();
+
+    function initPlayer() {
+      try {
+        ytPlayer = new YT.Player('yt-player', {
+          videoId: videoId,
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            autoplay: 1,
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1
+          },
+          events: {
+            onReady: (event) => {
+              maxWatchedTime = 0;
+              try { event.target.playVideo(); } catch (e) {}
+              startAntiSeekWatch();
+            },
+            onStateChange: (event) => {
+              if (event.data === YT.PlayerState.PLAYING) {
+                startAntiSeekWatch();
+              } else if (event.data === YT.PlayerState.ENDED) {
+                handleClipFinished();
+              }
+            },
+            onError: (event) => {
+              console.warn('YouTube Player error code:', event.data);
+              if (infoEl) {
+                infoEl.innerHTML = '<span style="color:#f59e0b;">⚠️ วิดีโอไม่รองรับการเล่นแบบฝัง ระบบปลดล็อกให้บันทึกคะแนนได้</span>';
+              }
+              if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '▶ เล่นต่อ (กระดานใหม่ คะแนนเดิม)';
+                saveBtn.classList.add('pulse-ready');
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('สร้าง YT.Player ไม่สำเร็จ:', err);
+      }
+    }
+
+    if (window.YT && window.YT.Player) {
+      initPlayer();
+    } else {
+      let attempts = 0;
+      const waiter = setInterval(() => {
+        attempts++;
+        if (window.YT && window.YT.Player) {
+          clearInterval(waiter);
+          initPlayer();
+        } else if (attempts > 30) {
+          clearInterval(waiter);
+          if (infoEl) infoEl.textContent = '⚠️ ไม่สามารถโหลด YouTube API ได้ กรุณาตรวจสอบอินเทอร์เน็ต';
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '▶ เล่นต่อ (กระดานใหม่ คะแนนเดิม)';
+          }
+        }
+      }, 100);
+    }
+  }
+
+  // ตรวจจับการกดเลื่อนแถบเวลาข้ามไปข้างหน้า (Anti-Seek ทุก 500ms)
+  function startAntiSeekWatch() {
+    if (ytWatchInterval) return;
+    ytWatchInterval = setInterval(() => {
+      if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+      try {
+        const currentTime = ytPlayer.getCurrentTime();
+        if (typeof currentTime === 'number' && !isNaN(currentTime)) {
+          if (currentTime > maxWatchedTime + 1.5) {
+            // เลื่อนเวลาข้ามไปข้างหน้า -> ดึงกลับมาเล่นต่อจาก maxWatchedTime
+            ytPlayer.seekTo(maxWatchedTime, true);
+            const warnEl = document.querySelector('.clip-antiseek-warning');
+            if (warnEl) {
+              warnEl.classList.add('flash-warn');
+              setTimeout(() => warnEl.classList.remove('flash-warn'), 700);
+            }
+          } else if (currentTime > maxWatchedTime) {
+            maxWatchedTime = currentTime;
+          }
+
+          const duration = (typeof ytPlayer.getDuration === 'function') ? ytPlayer.getDuration() : 0;
+          const infoEl = document.getElementById('clipProgressInfo');
+          if (infoEl && duration > 0) {
+            const curM = Math.floor(currentTime / 60);
+            const curS = Math.floor(currentTime % 60);
+            const durM = Math.floor(duration / 60);
+            const durS = Math.floor(duration % 60);
+            const pad = n => String(n).padStart(2, '0');
+            infoEl.textContent = `กำลังรับชม: ${pad(curM)}:${pad(curS)} / ${pad(durM)}:${pad(durS)}`;
+          }
+        }
+      } catch (e) {
+        console.warn('Anti-seek monitor error:', e);
+      }
+    }, 500);
+  }
+
+  function handleClipFinished() {
+    if (ytWatchInterval) {
+      clearInterval(ytWatchInterval);
+      ytWatchInterval = null;
+    }
+    const saveBtn = document.getElementById('btnSaveScoreFromClip');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = '▶ คืนชีพเล่นต่อ (กระดานใหม่ คะแนนเดิม)';
+      saveBtn.classList.add('pulse-ready');
+    }
+    const infoEl = document.getElementById('clipProgressInfo');
+    if (infoEl) {
+      infoEl.innerHTML = '<span style="color:#22c55e; font-weight:700;">🎉 ดูคลิปจบสมบูรณ์แล้ว! กดปุ่มด้านล่างเพื่อชุบชีวิตเล่นต่อ (กระดานใหม่ คะแนนเดิม)</span>';
+    }
+  }
+
+  // ระบบสุ่มทำแบบทดสอบ (Quiz System)
+  let currentQuiz = null;
+
+  function openRandomQuizModal() {
+    if (gameMode === 'Versus' || reviveCount >= MAX_REVIVES_PER_GAME) return; // ไม่ใช้ในโหมดดวลออนไลน์ หรือใช้สิทธิ์ครบแล้ว
+    closeOverlays();
+    const quizModal = document.getElementById('quizModal');
+    if (!quizModal) return;
+    quizModal.classList.remove('hidden');
+
+    const pool = (quizzes && quizzes.length > 0) ? quizzes : DEFAULT_QUIZZES;
+    currentQuiz = pool[Math.floor(Math.random() * pool.length)];
+
+    document.getElementById('quizQuestionText').textContent = currentQuiz.question || 'คำถาม';
+    document.getElementById('quizText1').textContent = currentQuiz.c1 || 'ตัวเลือก 1';
+    document.getElementById('quizText2').textContent = currentQuiz.c2 || 'ตัวเลือก 2';
+    document.getElementById('quizText3').textContent = currentQuiz.c3 || 'ตัวเลือก 3';
+    document.getElementById('quizText4').textContent = currentQuiz.c4 || 'ตัวเลือก 4';
+
+    const resultArea = document.getElementById('quizResultArea');
+    resultArea.className = 'quiz-result-area hidden';
+    resultArea.innerHTML = '';
+
+    const restartBtn = document.getElementById('btnRestartFromQuizWrong');
+    if (restartBtn) restartBtn.classList.add('hidden');
+    const saveWrongBtn = document.getElementById('btnGoToSaveScoreFromWrong');
+    if (saveWrongBtn) saveWrongBtn.classList.add('hidden');
+    const contCorrectBtn = document.getElementById('btnContinueFromQuizCorrect');
+    if (contCorrectBtn) contCorrectBtn.classList.add('hidden');
+
+    for (let i = 1; i <= 4; i++) {
+      const btn = document.getElementById('quizOpt' + i);
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'quiz-choice-btn';
+      }
+    }
+  }
+
+  function handleQuizChoice(choiceIndex) {
+    if (!currentQuiz) return;
+
+    // ปิดการกดปุ่มตัวเลือกทั้งหมด
+    for (let i = 1; i <= 4; i++) {
+      const btn = document.getElementById('quizOpt' + i);
+      if (btn) btn.disabled = true;
+    }
+
+    const selectedBtn = document.getElementById('quizOpt' + choiceIndex);
+    const rawAns = currentQuiz.answer;
+    const isCorrect = (String(rawAns).trim() === String(choiceIndex)) ||
+                      (String(rawAns).trim().toLowerCase() === String(currentQuiz['c' + choiceIndex]).trim().toLowerCase());
+
+    const resultArea = document.getElementById('quizResultArea');
+    resultArea.classList.remove('hidden');
+
+    if (isCorrect) {
+      if (selectedBtn) selectedBtn.classList.add('opt-correct');
+      resultArea.className = 'quiz-result-area correct';
+      resultArea.innerHTML = `🎉 <strong>ถูกต้อง!</strong> ได้รับสิทธิ์คืนชีพเล่นต่อ<br><span style="font-size:0.84rem; opacity:0.9;">กระดานถูกรีเซ็ตใหม่หมดโดยเริ่มที่คะแนนเดิม <b>${score.toLocaleString()}</b> คะแนน</span>`;
+
+      const contBtn = document.getElementById('btnContinueFromQuizCorrect');
+      if (contBtn) contBtn.classList.remove('hidden');
+
+      // เล่นต่ออัตโนมัติหลัง 1.5 วินาที
+      setTimeout(() => {
+        const quizM = document.getElementById('quizModal');
+        if (quizM && !quizM.classList.contains('hidden')) {
+          continueGameWithSavedScore();
+        }
+      }, 1500);
+    } else {
+      if (selectedBtn) selectedBtn.classList.add('opt-wrong');
+      // แสดงตัวเลือกที่ถูกต้อง
+      for (let i = 1; i <= 4; i++) {
+        const isThisCorrect = (String(rawAns).trim() === String(i)) ||
+                              (String(rawAns).trim().toLowerCase() === String(currentQuiz['c' + i]).trim().toLowerCase());
+        if (isThisCorrect) {
+          const correctBtn = document.getElementById('quizOpt' + i);
+          if (correctBtn) correctBtn.classList.add('opt-correct');
+        }
+      }
+
+      resultArea.className = 'quiz-result-area wrong';
+      resultArea.innerHTML = `❌ <strong>ตอบผิด!</strong> จบเกมรอบนี้<br><span style="font-size:0.84rem; opacity:0.9;">กำลังนำคุณไปบันทึกคะแนนสะสม (${score.toLocaleString()} คะแนน)</span>`;
+
+      const saveWrongBtn = document.getElementById('btnGoToSaveScoreFromWrong');
+      if (saveWrongBtn) saveWrongBtn.classList.remove('hidden');
+      const restartBtn = document.getElementById('btnRestartFromQuizWrong');
+      if (restartBtn) restartBtn.classList.remove('hidden');
+
+      // นำไปหน้าบันทึกคะแนนอัตโนมัติหลัง 1.8 วินาที
+      setTimeout(() => {
+        const quizM = document.getElementById('quizModal');
+        if (quizM && !quizM.classList.contains('hidden')) {
+          openSaveScoreModal();
+        }
+      }, 1800);
+    }
+  }
+
+  // Modal กรอกชื่อและบันทึกคะแนน พร้อม Feedback
+  function openSaveScoreModal() {
+    closeOverlays();
+    const saveModal = document.getElementById('saveScoreModal');
+    if (!saveModal) return;
+    saveModal.classList.remove('hidden');
+
+    const scoreValEl = document.getElementById('saveModalScoreVal');
+    if (scoreValEl) scoreValEl.textContent = score.toLocaleString();
+
+    const statusEl = document.getElementById('saveScoreStatus');
+    if (statusEl) {
+      statusEl.textContent = '';
+      statusEl.className = 'status-msg';
+    }
+
+    const feedbackInput = document.getElementById('saveScoreFeedback');
+    if (feedbackInput) {
+      feedbackInput.value = '';
+    }
+
+    selectedRating = 5;
+    const starBtns = document.querySelectorAll('.star-btn');
+    starBtns.forEach(b => {
+      b.classList.toggle('active', parseInt(b.getAttribute('data-star'), 10) <= 5);
+    });
+
+    const btnConfirm = document.getElementById('btnConfirmSaveScore');
+    if (btnConfirm) {
+      btnConfirm.disabled = false;
+      btnConfirm.textContent = '💾 ส่งสถิติและ Feedback เพื่อบันทึกคะแนน';
+    }
+
+    const postActions = document.getElementById('postSaveActions');
+    if (postActions) postActions.classList.add('hidden');
+  }
+
+  async function submitScoreAfterGate() {
+    const nameInput = document.getElementById('saveScorePlayerName');
+    const playerName = resolvePlayerName(nameInput ? nameInput.value : '');
+    const feedbackInput = document.getElementById('saveScoreFeedback');
+    const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
+    const btnConfirm = document.getElementById('btnConfirmSaveScore');
+    const statusEl = document.getElementById('saveScoreStatus');
+
+    if (!feedbackText) {
+      if (statusEl) {
+        statusEl.textContent = '⚠️ กรุณาพิมพ์ Feedback หรือข้อเสนอแนะก่อนส่งข้อมูล';
+        statusEl.className = 'status-msg err';
+      }
+      if (feedbackInput) feedbackInput.focus();
+      return;
+    }
+
+    if (btnConfirm) {
+      btnConfirm.disabled = true;
+      btnConfirm.textContent = '⏳ กำลังบันทึกคะแนนและ Feedback...';
+    }
+    if (statusEl) {
+      statusEl.textContent = `กำลังส่งข้อมูล (${playerName})...`;
+      statusEl.className = 'status-msg wait';
+    }
+
+    saveHighScore();
+
+    const scriptUrl = getScriptUrl();
+    try {
+      if (scriptUrl) {
+        await fetch(scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            playerName,
+            gameMode,
+            score,
+            level,
+            linesCleared: lines,
+            rating: selectedRating,
+            feedback: feedbackText
+          })
+        });
+      }
+      if (btnConfirm) btnConfirm.textContent = 'บันทึกคะแนนและ Feedback สำเร็จ!';
+      if (statusEl) {
+        statusEl.textContent = 'บันทึกสถิติและข้อเสนอแนะของคุณเรียบร้อยแล้ว!';
+        statusEl.className = 'status-msg ok';
+      }
+      const postActions = document.getElementById('postSaveActions');
+      if (postActions) postActions.classList.remove('hidden');
+    } catch (err) {
+      console.error('Save score error:', err);
+      if (btnConfirm) {
+        btnConfirm.disabled = false;
+        btnConfirm.textContent = '💾 ส่งสถิติและ Feedback เพื่อบันทึกคะแนน';
+      }
+      if (statusEl) {
+        statusEl.textContent = 'บันทึกคะแนนในเครื่องเรียบร้อยแล้ว (ไม่สามารถส่งคะแนนออนไลน์ได้)';
+        statusEl.className = 'status-msg err';
+      }
+      const postActions = document.getElementById('postSaveActions');
+      if (postActions) postActions.classList.remove('hidden');
+    }
+  }
+
+  // ระบบเพิ่มข้อสอบและคลิปเข้าคลัง (POST to contentGasUrl)
+  function openAddQuizModal() {
+    const modal = document.getElementById('addQuizModal');
+    if (modal) {
+      document.getElementById('addQuizStatus').textContent = '';
+      document.getElementById('addQuizStatus').className = 'status-msg';
+      modal.classList.remove('hidden');
+    }
+  }
+
+  function openAddClipModal() {
+    const modal = document.getElementById('addClipModal');
+    if (modal) {
+      document.getElementById('addClipStatus').textContent = '';
+      document.getElementById('addClipStatus').className = 'status-msg';
+      modal.classList.remove('hidden');
+    }
+  }
+
+  async function submitNewQuiz() {
+    const question = document.getElementById('newQuizQuestion').value.trim();
+    const c1 = document.getElementById('newQuizC1').value.trim();
+    const c2 = document.getElementById('newQuizC2').value.trim();
+    const c3 = document.getElementById('newQuizC3').value.trim();
+    const c4 = document.getElementById('newQuizC4').value.trim();
+    const answer = parseInt(document.getElementById('newQuizAnswer').value, 10);
+    const statusEl = document.getElementById('addQuizStatus');
+    const btn = document.getElementById('btnSubmitNewQuiz');
+
+    if (!question || !c1 || !c2 || !c3 || !c4) {
+      statusEl.textContent = '⚠️ กรุณากรอกคำถามและตัวเลือกให้ครบทั้ง 4 ข้อ';
+      statusEl.className = 'status-msg err';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังบันทึกข้อสอบ...';
+    statusEl.textContent = 'กำลังส่งข้อมูลไปยัง Google Apps Script...';
+    statusEl.className = 'status-msg wait';
+
+    const payload = {
+      action: "addQuiz",
+      question,
+      c1,
+      c2,
+      c3,
+      c4,
+      answer
+    };
+
+    try {
+      const res = await fetch(contentGasUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        quizzes.push(payload);
+        btn.textContent = 'บันทึกสำเร็จ';
+        statusEl.textContent = 'บันทึกข้อสอบเข้าคลังเรียบร้อยแล้ว!';
+        statusEl.className = 'status-msg ok';
+        document.getElementById('newQuizQuestion').value = '';
+        document.getElementById('newQuizC1').value = '';
+        document.getElementById('newQuizC2').value = '';
+        document.getElementById('newQuizC3').value = '';
+        document.getElementById('newQuizC4').value = '';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '📤 บันทึกข้อสอบเข้าคลัง';
+        }, 1500);
+      } else {
+        throw new Error((data && data.message) || 'บันทึกไม่สำเร็จ');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '📤 บันทึกข้อสอบเข้าคลัง';
+      statusEl.textContent = '⚠️ เกิดข้อผิดพลาด: ' + err.message;
+      statusEl.className = 'status-msg err';
+    }
+  }
+
+  async function submitNewClip() {
+    const title = document.getElementById('newClipTitle').value.trim();
+    const youtubeUrl = document.getElementById('newClipUrl').value.trim();
+    const statusEl = document.getElementById('addClipStatus');
+    const btn = document.getElementById('btnSubmitNewClip');
+
+    if (!title || !youtubeUrl) {
+      statusEl.textContent = '⚠️ กรุณากรอกชื่อคลิปและลิงก์ YouTube';
+      statusEl.className = 'status-msg err';
+      return;
+    }
+
+    const videoId = extractYouTubeVideoId(youtubeUrl);
+    if (!videoId) {
+      statusEl.textContent = '⚠️ รูปแบบลิงก์ YouTube ไม่ถูกต้อง กรุณาตรวจสอบลิงก์อีกครั้ง';
+      statusEl.className = 'status-msg err';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ กำลังบันทึกคลิป...';
+    statusEl.textContent = 'กำลังส่งข้อมูลไปยัง Google Apps Script...';
+    statusEl.className = 'status-msg wait';
+
+    const aspectChoice = document.getElementById('newClipAspect') ? document.getElementById('newClipAspect').value : 'auto';
+    let isShort = false;
+    if (aspectChoice === 'shorts') {
+      isShort = true;
+    } else if (aspectChoice === 'landscape') {
+      isShort = false;
+    } else {
+      isShort = (youtubeUrl.toLowerCase().includes('/shorts/') || youtubeUrl.toLowerCase().includes('shorts/'));
+    }
+
+    const payload = {
+      action: "addClip",
+      title,
+      youtubeUrl,
+      isShort
+    };
+
+    try {
+      const res = await fetch(contentGasUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data && data.status === 'success') {
+        clips.push(payload);
+        btn.textContent = 'บันทึกสำเร็จ';
+        statusEl.textContent = 'บันทึกคลิปวิดีโอเข้าคลังเรียบร้อยแล้ว!';
+        statusEl.className = 'status-msg ok';
+        document.getElementById('newClipTitle').value = '';
+        document.getElementById('newClipUrl').value = '';
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '📤 บันทึกคลิปเข้าคลัง';
+        }, 1500);
+      } else {
+        throw new Error((data && data.message) || 'บันทึกไม่สำเร็จ');
+      }
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '📤 บันทึกคลิปเข้าคลัง';
+      statusEl.textContent = '⚠️ เกิดข้อผิดพลาด: ' + err.message;
+      statusEl.className = 'status-msg err';
+    }
+  }
 
   const COLS = 10;
   const VISIBLE_ROWS = 20;
@@ -263,6 +1004,7 @@
   }
 
   function initBlockBlastGame() {
+    reviveCount = 0;
     gameMode = 'BlockBlast';
     gameState = 'PLAYING';
     activePiece = null;
@@ -580,7 +1322,7 @@
 
     piece.used = true;
     audioMgr.playSnap();
-    score += placedCount * 10;
+    score += placedCount * 1;
 
     // แอนิเมชันเด้งลงล็อกสมูทนุ่มนวล
     bbPlacedAnim = {
@@ -610,7 +1352,7 @@
     const totalCleared = fullRows.length + fullCols.length;
     if (totalCleared > 0) {
       comboCount++;
-      const comboBonus = totalCleared * 100 * comboCount;
+      const comboBonus = totalCleared * 25 + comboCount * 15;
       score += comboBonus;
       lines += totalCleared;
 
@@ -684,11 +1426,11 @@
       // ตรวจสอบ All Clear (ล้างหมดเกลี้ยงกระดาน)
       const isBoardEmpty = bbBoard.every(row => row.every(cell => cell === null));
       if (isBoardEmpty) {
-        score += 3000;
-        comboCount += 3;
+        score += 300;
+        comboCount += 2;
         triggerShake(16, 450);
         audioMgr.playLevelUp();
-        floatingTexts.push(new FloatingText('🌟 ALL CLEAR! +3,000', 5 * cellSize, 5 * cellSize, '#fef08a', 26));
+        floatingTexts.push(new FloatingText('🌟 ALL CLEAR! +300', 5 * cellSize, 5 * cellSize, '#fef08a', 26));
         cycleBlockSkin();
       }
     } else {
@@ -1185,7 +1927,7 @@
     { id: 'gold_digger', icon: '🪙', name: 'Gold Digger', desc: 'ล้างแถวที่มีบล็อกทองคำ (+1,000 แต้ม)' },
     { id: 'combo_legend', icon: '🔥', name: 'Combo Legend', desc: 'ทำ Combo ต่อเนื่องถึงระดับ ×5' },
     { id: 'sprint_champion', icon: '⏱️', name: 'Sprint Champion', desc: 'ผ่านโหมด Sprint 40 แถวสำเร็จ' },
-    { id: 'ultra_star', icon: '⭐', name: 'Blitz Master', desc: 'ทำคะแนนเกิน 10,000 ในโหมด 2 นาที' },
+    { id: 'ultra_star', icon: '⭐', name: 'Blitz Master', desc: 'ทำคะแนนเกิน 3,000 ในโหมด 2 นาที' },
     { id: 'survivor', icon: '🧗', name: 'Survivor', desc: 'เอาชีวิตรอดในโหมดตึงเครียดนานเกิน 20 วินาที' }
   ];
 
@@ -1938,7 +2680,7 @@ function spawnRowParticles(fullRowIndices) {
       }
     }
 
-    score += 300;
+    score += 30;
     document.getElementById('scoreVal').textContent = score.toLocaleString();
     spawnNextPiece();
   }
@@ -2150,14 +2892,7 @@ function spawnRowParticles(fullRowIndices) {
   }
 
   function getScriptUrl() {
-    try {
-      if (_APP_ENDPOINT.startsWith('http://') || _APP_ENDPOINT.startsWith('https://')) {
-        return _APP_ENDPOINT;
-      }
-      return atob(_APP_ENDPOINT.split('').reverse().join(''));
-    } catch (e) {
-      return _APP_ENDPOINT || '';
-    }
+    return scoreFeedbackGasUrl;
   }
 
   function resolvePlayerName(rawInput) {
@@ -2635,7 +3370,7 @@ function spawnRowParticles(fullRowIndices) {
     if (!dualActivePiece) return;
     const ghostY = getDualGhostY();
     const dropDistance = Math.max(0, ghostY - dualActivePiece.y);
-    score += dropDistance * 2;
+    score += dropDistance * 1;
     dualActivePiece.y = ghostY;
     updateScoreUI();
     triggerLandingSquash(0.72);
@@ -2648,7 +3383,7 @@ function spawnRowParticles(fullRowIndices) {
     if (!activePiece || gameMode === 'Classic') return;
     const ghostY = getGhostY();
     const dropDistance = Math.max(0, ghostY - activePiece.y);
-    score += dropDistance * 2;
+    score += dropDistance * 1;
     activePiece.y = ghostY;
     updateScoreUI();
 
@@ -2869,7 +3604,7 @@ function spawnRowParticles(fullRowIndices) {
             }
           }
         }
-        score += Math.max(50, destroyedCount * 25);
+        score += Math.max(15, destroyedCount * 5);
         const pX = (spec.c + 0.5) * cellSize;
         const pY = (spec.r - HIDDEN_ROWS + 0.5) * cellSize;
         triggerShake(10, 320);
@@ -2884,20 +3619,20 @@ function spawnRowParticles(fullRowIndices) {
         triggerShake(6, 220);
         spawnLaserParticles(laserBeamRow);
         audioMgr.playLaser();
-        score += 200;
+        score += 40;
         floatingTexts.push(new FloatingText('⚡ LASER ZAP!', (COLS * cellSize) / 2, (laserBeamRow + 0.5) * cellSize, '#00e5ff', 20));
       } else if (spec.type === 'VORTEX') {
         // ดูดและล้าง 2 แถวล่างสุด
         triggerVortexEffect(spec.r, spec.c);
-        score += 250;
+        score += 40;
         floatingTexts.push(new FloatingText('🌀 VORTEX DRAIN!', (COLS * cellSize) / 2, 100, '#c084fc', 20));
       } else if (spec.type === 'GOLD') {
-        // โบนัสคะแนนมหาศาล
-        score += 500;
+        // โบนัสคะแนน
+        score += 80;
         spawnGoldParticles(spec.r - HIDDEN_ROWS);
         audioMgr.playGold();
         unlockAchievement('gold_digger');
-        floatingTexts.push(new FloatingText('+500 GOLD! 🪙', (spec.c + 0.5) * cellSize, (spec.r - HIDDEN_ROWS + 0.5) * cellSize, '#ffd700', 20));
+        floatingTexts.push(new FloatingText('+80 GOLD! 🪙', (spec.c + 0.5) * cellSize, (spec.r - HIDDEN_ROWS + 0.5) * cellSize, '#ffd700', 20));
       }
     });
 
@@ -3092,21 +3827,20 @@ function spawnRowParticles(fullRowIndices) {
     const count = clearingRows.length;
     const isClassic = (gameMode === 'Classic') || (gameMode === 'Versus' && activeVsSubMode === 'Classic');
 
-    // สูตรคะแนนต้นตำรับของ Nintendo NES Tetris ดั้งเดิม:
-    // Single: 40 * Level | Double: 100 * Level | Triple: 300 * Level | Tetris: 1200 * Level
-    let baseScore;
-    if (isClassic) {
-      baseScore = ([0, 40, 100, 300, 1200][count] || 1200) * level;
-    } else {
-      baseScore = ([0, 100, 300, 500, 800][count] || 800) * level;
-    }
+    // สูตรคะแนนปรับสมดุลมาตรฐาน (ไม่ให้คะแนนเฟ้อเร็วเกินไป):
+    // Single: 40 | Double: 100 | Triple: 250 | Tetris (4 แถว): 600
+    // ตัวคูณเลเวลเติบโตอย่างสมดุล (1 + (level - 1) * 0.1)
+    const baseTable = [0, 40, 100, 250, 600];
+    const rawBase = baseTable[count] || 600;
+    const levelMult = 1 + (level - 1) * 0.1;
+    let baseScore = Math.round(rawBase * levelMult);
 
     // ตรวจสอบและทริกเกอร์บล็อกพิเศษ (BOMB, LASER, VORTEX, GOLD) เมื่อทำลายแถวสำเร็จ!
     if (!isClassic) {
       triggerSpecialBlocksInClearingRows(clearingRows);
 
       if (!isBombChainClear && comboCount > 0) {
-        baseScore += 50 * comboCount * level;
+        baseScore += 15 * comboCount;
       }
     }
 
@@ -3219,7 +3953,7 @@ function spawnRowParticles(fullRowIndices) {
     audioMgr.gameOverBgm();
     audioMgr.playGameOver();
 
-    if (score >= 10000) unlockAchievement('ultra_star');
+    if (score >= 3000) unlockAchievement('ultra_star');
 
     document.getElementById('finalMode').textContent = 'Ultra Blitz (2 นาที)';
     document.getElementById('finalScore').textContent = score.toLocaleString();
@@ -3302,6 +4036,7 @@ function spawnRowParticles(fullRowIndices) {
   }
 
   function startNewGame() {
+    reviveCount = 0;
     if (gameMode === 'BlockBlast') { initBlockBlastGame(); return; }
     loadSavedData();
     board = createEmptyBoard();
@@ -3382,21 +4117,49 @@ function spawnRowParticles(fullRowIndices) {
   }
 
   function prepareGameOverUI() {
-    feedbackSubmitted = false;
-    document.getElementById('feedbackInput').value = '';
-    document.getElementById('feedbackStatus').textContent = '';
-    document.getElementById('feedbackStatus').className = 'status-msg';
+    if (gameMode === 'Versus') return; // ไม่ใช้ในโหมดดวลออนไลน์ (โหมดดวลออนไลน์ใช้ vsGameOverOverlay แยกเฉพาะ)
+    closeOverlays();
+    if (!document.getElementById('finalMode').textContent || (gameMode !== 'Sprint' && gameMode !== 'Ultra')) {
+      document.getElementById('finalMode').textContent = gameMode;
+    }
+    document.getElementById('finalScore').textContent = score.toLocaleString();
+    document.getElementById('finalLevel').textContent = (gameMode === 'BlockBlast' ? '-' : String(level));
+    document.getElementById('finalLines').textContent = lines.toLocaleString();
 
-    const btnSubmit = document.getElementById('btnSubmitFeedback');
-    btnSubmit.disabled = false;
-    btnSubmit.textContent = '📤 ส่งสถิติและ Feedback เพื่อปลดล็อก';
+    // จำกัดสิทธิ์คืนชีพเล่นต่อได้สูงสุด 3 ครั้งต่อเกม
+    const remainingRevives = Math.max(0, MAX_REVIVES_PER_GAME - reviveCount);
+    const badgeEl = document.getElementById('reviveLimitBadge');
+    const buttonsContainer = document.getElementById('knowledgeGateButtons');
+    const descEl = document.getElementById('knowledgeGateDesc');
+    const exhaustedMsg = document.getElementById('reviveExhaustedMsg');
+
+    if (badgeEl) {
+      badgeEl.textContent = `สิทธิ์คืนชีพคงเหลือ: ${remainingRevives}/${MAX_REVIVES_PER_GAME} ครั้งต่อเกม`;
+      badgeEl.style.color = (remainingRevives > 0) ? '#38bdf8' : '#ef4444';
+      badgeEl.style.borderColor = (remainingRevives > 0) ? 'rgba(56, 189, 248, 0.45)' : 'rgba(239, 68, 68, 0.45)';
+      badgeEl.style.background = (remainingRevives > 0) ? 'rgba(56, 189, 248, 0.16)' : 'rgba(239, 68, 68, 0.16)';
+    }
+
+    if (remainingRevives <= 0) {
+      if (buttonsContainer) buttonsContainer.classList.add('hidden');
+      if (descEl) descEl.classList.add('hidden');
+      if (exhaustedMsg) exhaustedMsg.classList.remove('hidden');
+    } else {
+      if (buttonsContainer) buttonsContainer.classList.remove('hidden');
+      if (descEl) descEl.classList.remove('hidden');
+      if (exhaustedMsg) exhaustedMsg.classList.add('hidden');
+    }
 
     const btnAgain = document.getElementById('btnPlayAgain');
     const btnMenu = document.getElementById('btnBackToMenu');
-    btnAgain.disabled = true;
-    btnAgain.textContent = '🔒 เล่นใหม่อีกครั้ง (ส่ง Feedback ก่อน)';
-    btnMenu.disabled = true;
-    btnMenu.textContent = '🔒 กลับหน้าเลือกโหมด (ส่ง Feedback ก่อน)';
+    if (btnAgain) {
+      btnAgain.disabled = false;
+      btnAgain.textContent = '🔄 เริ่มใหม่ (นับ 0)';
+    }
+    if (btnMenu) {
+      btnMenu.disabled = false;
+      btnMenu.textContent = '🎮 กลับหน้าเลือกโหมด';
+    }
 
     document.getElementById('gameOverOverlay').classList.remove('hidden');
   }
@@ -4626,9 +5389,11 @@ const BLOCK_SKINS = [
         const blur = Math.round(14 + boardGlowIntensity * 32);
         container.style.boxShadow = `0 0 ${blur}px ${spread}px rgba(${glowColor}, ${boardGlowIntensity * 0.75}), inset 0 0 10px rgba(${glowColor}, ${boardGlowIntensity * 0.35})`;
         container.style.borderColor = `rgba(${glowColor}, ${0.25 + boardGlowIntensity * 0.75})`;
-      } else {
+        lastGlowApplied = true;
+      } else if (lastGlowApplied) {
         container.style.boxShadow = '';
         container.style.borderColor = '';
+        lastGlowApplied = false;
       }
     }
 
@@ -4793,15 +5558,34 @@ const BLOCK_SKINS = [
     }
   }
 
+  let lastGlowApplied = false;
+  let menuCanvasRendered = false;
+
   function gameLoop(now) {
     const dt = Math.min(now - lastTime, 100);
     lastTime = now;
     try {
-      update(dt);
-      renderBoard();
-      renderHold();
-      renderNext();
-      if (gameMode === 'Versus' && typeof versusManager !== 'undefined' && versusManager.state !== 'IDLE') {
+      if (gameState === 'PLAYING') {
+        menuCanvasRendered = false;
+        update(dt);
+        renderBoard();
+        renderHold();
+        renderNext();
+      } else {
+        // ในหน้าเมนู / หยุดชั่วคราว / จบเกม: ลดการทำงานของ GPU และ Canvas ไม่ให้ทำงานซ้ำ 60 FPS ไร้ประโยชน์
+        const hasActiveAnims = particles.length > 0 || floatingTexts.length > 0 || shockwaves.length > 0 || (typeof bbLineClearEffects !== 'undefined' && bbLineClearEffects.length > 0) || (typeof bbPlacedAnim !== 'undefined' && bbPlacedAnim);
+        if (hasActiveAnims) {
+          update(dt);
+          renderBoard();
+        } else if (!menuCanvasRendered) {
+          renderBoard();
+          renderHold();
+          renderNext();
+          menuCanvasRendered = true;
+        }
+      }
+
+      if (gameMode === 'Versus' && typeof versusManager !== 'undefined' && versusManager && versusManager.state !== 'IDLE') {
         versusManager.update(dt);
         versusManager.render();
       }
@@ -5136,8 +5920,9 @@ const BLOCK_SKINS = [
         garbageToSend += 6;
       }
 
-      const baseScores = [0, 100, 300, 500, 800];
-      this.score += (baseScores[lineCount] || 0) + (this.combo > 1 ? this.combo * 50 : 0);
+      const baseScores = [0, 40, 100, 250, 600];
+      const comboBonus = this.combo > 1 ? (this.combo - 1) * 15 : 0;
+      this.score += (baseScores[lineCount] || 0) + comboBonus;
 
       if (garbageToSend > 0) {
         if (this.pendingGarbage > 0) {
@@ -7011,6 +7796,7 @@ const BLOCK_SKINS = [
   }
 
   function closeOverlays() {
+    destroyYtPlayer();
     document.getElementById('startOverlay').classList.add('hidden');
     document.getElementById('pauseOverlay').classList.add('hidden');
     document.getElementById('gameOverOverlay').classList.add('hidden');
@@ -7024,6 +7810,18 @@ const BLOCK_SKINS = [
     if (lobby) lobby.classList.add('hidden');
     const passModal = document.getElementById('roomPasswordModal');
     if (passModal) passModal.classList.add('hidden');
+
+    // ซ่อน Modal ระบบคลังความรู้ใหม่ทั้งหมด
+    const clipM = document.getElementById('clipModal');
+    if (clipM) clipM.classList.add('hidden');
+    const quizM = document.getElementById('quizModal');
+    if (quizM) quizM.classList.add('hidden');
+    const saveM = document.getElementById('saveScoreModal');
+    if (saveM) saveM.classList.add('hidden');
+    const addQM = document.getElementById('addQuizModal');
+    if (addQM) addQM.classList.add('hidden');
+    const addCM = document.getElementById('addClipModal');
+    if (addCM) addCM.classList.add('hidden');
   }
 
   
@@ -7494,6 +8292,12 @@ const BLOCK_SKINS = [
     document.addEventListener('MSFullscreenChange', updateFullscreenUI);
   }
 
+  // Event Listeners helper
+  function safeOn(id, evt, fn) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(evt, fn);
+  }
+
   const starBtns = document.querySelectorAll('.star-btn');
   starBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -7503,30 +8307,40 @@ const BLOCK_SKINS = [
     });
   });
 
-  document.getElementById('btnSubmitFeedback').addEventListener('click', async () => {
+  safeOn('btnSubmitFeedback', 'click', async () => {
     if (feedbackSubmitted) return;
     const scriptUrl = getScriptUrl();
     const statusEl = document.getElementById('feedbackStatus');
-    const feedbackText = document.getElementById('feedbackInput').value.trim();
+    const feedbackInput = document.getElementById('feedbackInput');
+    const feedbackText = feedbackInput ? feedbackInput.value.trim() : '';
 
     if (!feedbackText) {
-      statusEl.textContent = '⚠️ กรุณาพิมพ์ Feedback ก่อนส่ง';
-      statusEl.className = 'status-msg err';
-      document.getElementById('feedbackInput').focus();
+      if (statusEl) {
+        statusEl.textContent = '⚠️ กรุณาพิมพ์ Feedback ก่อนส่ง';
+        statusEl.className = 'status-msg err';
+      }
+      if (feedbackInput) feedbackInput.focus();
       return;
     }
     if (!scriptUrl) {
-      statusEl.textContent = '⚠️ ไม่พบ URL ปลายทางสำหรับส่งข้อมูล';
-      statusEl.className = 'status-msg err';
+      if (statusEl) {
+        statusEl.textContent = '⚠️ ไม่พบ URL ปลายทางสำหรับส่งข้อมูล';
+        statusEl.className = 'status-msg err';
+      }
       return;
     }
 
-    const playerName = resolvePlayerName(document.getElementById('playerNameInput').value);
+    const playerInput = document.getElementById('playerNameInput');
+    const playerName = resolvePlayerName(playerInput ? playerInput.value : '');
     const btnSubmit = document.getElementById('btnSubmitFeedback');
-    btnSubmit.disabled = true;
-    btnSubmit.textContent = '⏳ กำลังบันทึกข้อมูล...';
-    statusEl.textContent = `กำลังส่งข้อมูล (${playerName})...`;
-    statusEl.className = 'status-msg wait';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = '⏳ กำลังบันทึกข้อมูล...';
+    }
+    if (statusEl) {
+      statusEl.textContent = `กำลังส่งข้อมูล (${playerName})...`;
+      statusEl.className = 'status-msg wait';
+    }
 
     try {
       await fetch(scriptUrl, {
@@ -7535,25 +8349,24 @@ const BLOCK_SKINS = [
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ playerName, gameMode, score, level, linesCleared: lines, rating: selectedRating, feedback: feedbackText })
       });
-      btnSubmit.textContent = '✅ บันทึกสำเร็จ';
-      statusEl.textContent = 'บันทึกเรียบร้อย! ปลดล็อกปุ่มเล่นใหม่แล้ว';
-      statusEl.className = 'status-msg ok';
+      if (btnSubmit) btnSubmit.textContent = 'บันทึกสำเร็จ';
+      if (statusEl) {
+        statusEl.textContent = 'บันทึกเรียบร้อย! ปลดล็อกปุ่มเล่นใหม่แล้ว';
+        statusEl.className = 'status-msg ok';
+      }
       unlockPostFeedbackButtons();
     } catch (err) {
-      btnSubmit.disabled = false;
-      btnSubmit.textContent = '📤 ส่งสถิติและ Feedback เพื่อปลดล็อก';
-      statusEl.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
-      statusEl.className = 'status-msg err';
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = '📤 ส่งสถิติและ Feedback เพื่อปลดล็อก';
+      }
+      if (statusEl) {
+        statusEl.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+        statusEl.className = 'status-msg err';
+      }
     }
   });
 
-  // Event Listeners
-    function safeOn(id, evt, fn) {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener(evt, fn);
-  }
-
-  
   // Rules Guide Events
   safeOn('btnAcceptRules', 'click', () => {
     audioMgr.init();
@@ -7630,6 +8443,76 @@ const BLOCK_SKINS = [
     }
     openStartMenu();
   });
+
+  // กิจกรรมความรู้ก่อนบันทึกคะแนนหลัง Game Over
+  safeOn('btnChoiceWatchClip', 'click', () => openRandomClipModal());
+  safeOn('btnChoiceTakeQuiz', 'click', () => openRandomQuizModal());
+  safeOn('btnSaveScoreDirectGameOver', 'click', () => openSaveScoreModal());
+
+  // Modal ดูคลิป YouTube (ดูจบกดเล่นต่อด้วยคะแนนเดิม)
+  safeOn('btnSaveScoreFromClip', 'click', () => continueGameWithSavedScore());
+  safeOn('btnToggleClipAspect', 'click', () => {
+    applyClipAspectRatio(!currentClipIsShort);
+  });
+  safeOn('btnCloseClipModal', 'click', () => {
+    destroyYtPlayer();
+    prepareGameOverUI();
+  });
+
+  // Modal ทำแบบทดสอบ (Quiz)
+  for (let i = 1; i <= 4; i++) {
+    safeOn('quizOpt' + i, 'click', () => handleQuizChoice(i));
+  }
+  safeOn('btnContinueFromQuizCorrect', 'click', () => continueGameWithSavedScore());
+  safeOn('btnGoToSaveScoreFromWrong', 'click', () => openSaveScoreModal());
+  safeOn('btnRestartFromQuizWrong', 'click', () => {
+    closeOverlays();
+    startNewGame();
+  });
+
+  // Modal กรอกชื่อและบันทึกคะแนน
+  safeOn('btnConfirmSaveScore', 'click', () => submitScoreAfterGate());
+  safeOn('btnPlayAgainAfterSave', 'click', () => {
+    closeOverlays();
+    startNewGame();
+  });
+  safeOn('btnMenuAfterSave', 'click', () => {
+    closeOverlays();
+    openStartMenu();
+  });
+
+  // Modal เพิ่มข้อสอบเข้าคลัง
+  safeOn('btnOpenAddQuizTop', 'click', () => openAddQuizModal());
+  safeOn('btnOpenAddQuizSide', 'click', () => openAddQuizModal());
+  safeOn('btnOpenAddQuizPause', 'click', () => openAddQuizModal());
+  safeOn('btnSubmitNewQuiz', 'click', () => submitNewQuiz());
+  safeOn('btnCloseAddQuiz', 'click', () => {
+    const modal = document.getElementById('addQuizModal');
+    if (modal) modal.classList.add('hidden');
+  });
+
+  // Modal เพิ่มคลิป YouTube เข้าคลัง
+  safeOn('btnOpenAddClipTop', 'click', () => openAddClipModal());
+  safeOn('btnOpenAddClipSide', 'click', () => openAddClipModal());
+  safeOn('btnOpenAddClipPause', 'click', () => openAddClipModal());
+  safeOn('btnSubmitNewClip', 'click', () => submitNewClip());
+  safeOn('btnCloseAddClip', 'click', () => {
+    const modal = document.getElementById('addClipModal');
+    if (modal) modal.classList.add('hidden');
+  });
+
+  const inputNewClipUrl = document.getElementById('newClipUrl');
+  if (inputNewClipUrl) {
+    inputNewClipUrl.addEventListener('input', () => {
+      const val = inputNewClipUrl.value.toLowerCase();
+      const sel = document.getElementById('newClipAspect');
+      if (sel && sel.value === 'auto') {
+        if (val.includes('/shorts/') || val.includes('shorts/')) {
+          sel.value = 'shorts';
+        }
+      }
+    });
+  }
   safeOn('btnPause', 'click', () => togglePause());
   safeOn('btnRestartTop', 'click', () => {
     if (gameMode === 'Versus') {
